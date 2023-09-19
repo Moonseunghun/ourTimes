@@ -49,8 +49,8 @@ class _MyHomePageState extends State<MyHomePage> {
     MyAppHome(),
     CalendarApp(),
     CombinedApp(),
-    RealtimeDbDataViewer(), // Firebase Realtime Database 데이터 뷰어 추가
     FirestoreDataViewer(),
+    NameListApp(),
   ];
 
   @override
@@ -69,23 +69,23 @@ class _MyHomePageState extends State<MyHomePage> {
         },
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
+            icon: Icon(Icons.home , color: Colors.black,),
             label: 'ChartApp',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month),
+            icon: Icon(Icons.calendar_month , color: Colors.black),
             label: 'CalendarApp',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.school),
+            icon: Icon(Icons.school , color: Colors.black),
             label: 'TotalApp',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.message), // Firebase Realtime Database 데이터 뷰어 아이콘
+            icon: Icon(Icons.message , color: Colors.black), // Firebase Realtime Database 데이터 뷰어 아이콘
             label: 'Realtime DB',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.cloud), // Firestore 데이터 뷰어 아이콘
+            icon: Icon(Icons.cloud , color: Colors.black), // Firestore 데이터 뷰어 아이콘
             label: 'Firestore',
           ),
         ],
