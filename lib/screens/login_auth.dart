@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fluttertil/main.dart';
 
 void main() => runApp(MyApp());
 
@@ -16,12 +18,12 @@ class MyApp extends StatelessWidget {
 class LogIn extends StatefulWidget {
   @override
   State<LogIn> createState() => _LogInState();
-//_ 언더바는 사용하자 않는 클래스를 말한다
 }
 
 class _LogInState extends State<LogIn> {
   TextEditingController controller = TextEditingController();
   TextEditingController controller2 = TextEditingController();
+  FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +38,6 @@ class _LogInState extends State<LogIn> {
           IconButton(icon: Icon(Icons.search), onPressed: () {})
         ],
       ),
-      // email, password 입력하는 부분을 제외한 화면을 탭하면, 키보드 사라지게 GestureDetector 사용
       body: GestureDetector(
         onTap: () {
           FocusScope.of(context).unfocus();
@@ -75,7 +76,7 @@ class _LogInState extends State<LogIn> {
                             decoration:
                             InputDecoration(labelText: 'Enter password'),
                             keyboardType: TextInputType.text,
-                            obscureText: true, // 비밀번호 안보이도록 하는 것
+                            obscureText: true,
                           ),
                           SizedBox(
                             height: 40.0,
@@ -84,32 +85,33 @@ class _LogInState extends State<LogIn> {
                             minWidth: 100.0,
                             height: 50.0,
                             child: ElevatedButton(
-                              onPressed: () {
-                                if (controller.text == 'mei@hello.com' &&
-                                    controller2.text == '1234') {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (BuildContext context) =>
-                                          NextPage(),
-                                    ),
+                              onPressed: () async {
+                                try {
+                                  final UserCredential userCredential =
+                                  await _auth.signInWithEmailAndPassword(
+                                    email: controller.text,
+                                    password: controller2.text,
                                   );
-                                } else if (controller.text == 'mei@hello.com' &&
-                                    controller2.text != '1234') {
+                                  final User? user =
+                                      userCredential.user;
+                                  if (user != null) {
+                                    Navigator.pushReplacement( // Use pushReplacement to replace the login screen with the main screen
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (BuildContext context) => MyHomePage(), // Navigate to the main screen
+                                      ),
+                                    );
+                                  } else {
+                                    showSnackBar(
+                                      context,
+                                      Text('로그인에 실패했습니다.'),
+                                    );
+                                  }
+                                } catch (e) {
+                                  print('Error:$e');
                                   showSnackBar(
                                     context,
-                                    Text('Wrong password'),
-                                  );
-                                } else if (controller.text != 'mei@hello.com' &&
-                                    controller2.text == '1234') {
-                                  showSnackBar(
-                                    context,
-                                    Text('Wrong email'),
-                                  );
-                                } else {
-                                  showSnackBar(
-                                    context,
-                                    Text('Check your info again'),
+                                    Text('로그인에 실패했습니다. 오류: $e'),
                                   );
                                 }
                               },
@@ -143,8 +145,6 @@ void showSnackBar(BuildContext context, Text text) {
     backgroundColor: Color.fromARGB(255, 112, 48, 48),
   );
 
-  // Find the ScaffoldMessenger in the widget tree
-  // and use it to show a SnackBar.
   ScaffoldMessenger.of(context).showSnackBar(snackBar);
 }
 

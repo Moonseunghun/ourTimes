@@ -42,9 +42,10 @@ dependencies:
   go_router: ^10.1.2
   syncfusion_flutter_calendar: ^22.2.12
   table_calendar: ^3.0.9
-  firebase_core: ^2.15.1
   firebase_auth: ^4.9.0
   flutter_native_splash: ^2.3.2
+  firebase_core: ^2.15.1
+  cloud_firestore: ^4.9.1
 
 
 
