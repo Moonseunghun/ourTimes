@@ -1,10 +1,14 @@
-import 'dart:math'; // Random 클래스를 사용하기 위해 수학 라이브러리를 임포트합니다.
-import 'package:flutter/material.dart'; // Flutter UI 라이브러리를 임포트합니다.
-import 'package:syncfusion_flutter_charts/charts.dart'; // Syncfusion 차트 라이브러리를 임포트합니다.
-import 'package:syncfusion_flutter_calendar/calendar.dart'; // Syncfusion 캘린더 라이브러리를 임포트합니다.
+import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:syncfusion_flutter_calendar/calendar.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math';
 
-void main() {
-  runApp(const MyApp()); // 앱 실행을 시작합니다.
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // Firebase 초기화
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -13,8 +17,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(primarySwatch: Colors.blue), // 앱의 테마를 설정합니다.
-      home: const CombinedApp(), // 홈 화면으로 CombinedApp 위젯을 사용합니다.
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const CombinedApp(),
     );
   }
 }
@@ -23,36 +27,59 @@ class CombinedApp extends StatefulWidget {
   const CombinedApp({Key? key}) : super(key: key);
 
   @override
-  CombinedAppState createState() =>
-      CombinedAppState(); // CombinedApp 위젯의 상태를 관리할 CombinedAppState를 생성합니다.
+  CombinedAppState createState() => CombinedAppState();
 }
 
 class CombinedAppState extends State<CombinedApp> {
-  List<_SalesData> chartData = []; // 차트 데이터를 저장할 리스트입니다.
-  List<_SalesData> chartDataForDisplay = []; // 표시할 차트 데이터를 저장할 리스트입니다.
+  List<_SalesData> chartData = [];
+  List<_SalesData> chartDataForDisplay = [];
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
+  List<int> scores = []; // Firestore에서 가져온 점수 목록
+  int filteredScore = 0; // 필터링된 점수 합계
 
-  DateTime? _selectedStartDate; // 선택한 시작 날짜를 저장합니다.
-  DateTime? _selectedEndDate; // 선택한 끝 날짜를 저장합니다.
+  // Firestore에서 데이터 읽어오기
+  Future<void> fetchDataFromFirestore() async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('scores')
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        scores = [];
+        querySnapshot.docs.forEach((doc) {
+          final score = doc['score'] as int;
+          scores.add(score);
+        });
+        setState(() {
+          filteredScore = _calculateFilteredScore();
+        });
+      }
+    } catch (error) {
+      print('Error fetching data from Firestore: $error');
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     // 초기 차트 데이터 생성
-    chartData = _SalesData.generateRandomData(DateTime(2023, 9, 1),
-        DateTime(2023, 9, 30)); // 초기 차트 데이터를 생성하고 리스트에 추가합니다.
-    chartDataForDisplay.addAll(chartData); // 표시할 차트 데이터 리스트에 추가합니다.
+    chartData = _SalesData.generateRandomData(
+        DateTime(2023, 9, 1), DateTime(2023, 9, 30));
+    chartDataForDisplay.addAll(chartData);
+    fetchDataFromFirestore(); // Firestore에서 데이터 읽어오기
   }
 
   List<_SalesData> getFilteredChartData() {
     if (_selectedStartDate == null || _selectedEndDate == null) {
-      return chartData; // 선택한 날짜가 없으면 전체 데이터를 반환합니다.
+      return chartData;
     } else {
       final filteredData = chartData.where((data) {
         final DateTime dataDate = data.year;
         return dataDate.isAfter(_selectedStartDate!) &&
             dataDate.isBefore(_selectedEndDate!);
-      }).toList(); // 선택한 날짜 범위에 해당하는 데이터만 필터링합니다.
-      return filteredData; // 필터링된 데이터를 반환합니다.
+      }).toList();
+      return filteredData;
     }
   }
 
@@ -60,12 +87,38 @@ class CombinedAppState extends State<CombinedApp> {
     if (_selectedStartDate != null && _selectedEndDate != null) {
       final startDate = _selectedStartDate!;
       final endDate = _selectedEndDate!.add(Duration(days: 1));
-      final filteredData = _SalesData.generateRandomData(startDate, endDate);
-      setState(() {
-        chartDataForDisplay.clear();
-        chartDataForDisplay
-            .addAll(filteredData); // 선택한 날짜 범위에 따라 차트 데이터를 업데이트합니다.
+      final filteredData =
+      _SalesData.generateRandomData(startDate, endDate);
+
+      // Firebase Firestore에 데이터 추가
+      FirebaseFirestore.instance
+          .collection('chart_data')
+          .doc('filtered_data')
+          .set({'data': filteredData.map((data) => data.toMap()).toList()})
+          .then((_) {
+        setState(() {
+          chartDataForDisplay.clear();
+          chartDataForDisplay.addAll(filteredData);
+        });
+      }).catchError((error) {
+        print('Error adding document: $error');
       });
+    }
+  }
+
+  int _calculateFilteredScore() {
+    if (_selectedStartDate == null || _selectedEndDate == null) {
+      // 시작 날짜와 종료 날짜가 없으면 모든 점수를 합산
+      return scores.fold(0, (sum, score) => sum + score);
+    } else {
+      // 시작 날짜와 종료 날짜 사이의 점수만 합산
+      return scores
+          .where((score) {
+        final date = DateTime.fromMillisecondsSinceEpoch(score * 1000);
+        return date.isAfter(_selectedStartDate!) &&
+            date.isBefore(_selectedEndDate!);
+      })
+          .fold(0, (sum, score) => sum + score);
     }
   }
 
@@ -96,14 +149,15 @@ class CombinedAppState extends State<CombinedApp> {
             decoration: BoxDecoration(
               color: _selectedStartDate != null
                   ? Colors.green
-                  : Colors.transparent, // 선택한 시작 날짜에 따라 색상을 변경하는 컨테이너입니다.
-              borderRadius: BorderRadius.circular(10), // 컨테이너의 모서리를 둥글게 만듭니다.
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               'Selected Start Date: ${_selectedStartDate ?? "selected start date"}',
               style: TextStyle(
                 fontSize: 16,
-                color: _selectedStartDate != null ? Colors.white : Colors.black,
+                color:
+                _selectedStartDate != null ? Colors.white : Colors.black,
               ),
             ),
           ),
@@ -113,14 +167,30 @@ class CombinedAppState extends State<CombinedApp> {
             decoration: BoxDecoration(
               color: _selectedEndDate != null
                   ? Colors.green
-                  : Colors.transparent, // 선택한 끝 날짜에 따라 색상을 변경하는 컨테이너입니다.
-              borderRadius: BorderRadius.circular(10), // 컨테이너의 모서리를 둥글게 만듭니다.
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               'Selected End Date: ${_selectedEndDate ?? "select your end date"}',
               style: TextStyle(
                 fontSize: 16,
-                color: _selectedEndDate != null ? Colors.white : Colors.black,
+                color:
+                _selectedEndDate != null ? Colors.white : Colors.black,
+              ),
+            ),
+          ),
+          Container(
+            margin: EdgeInsets.symmetric(vertical: 10),
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.lightBlue,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'Filtered Score: $filteredScore',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white,
               ),
             ),
           ),
@@ -130,7 +200,8 @@ class CombinedAppState extends State<CombinedApp> {
               view: CalendarView.month,
               onLongPress: (calendarLongPressDetails) {
                 setState(() {
-                  if (_selectedStartDate == null || _selectedEndDate != null) {
+                  if (_selectedStartDate == null ||
+                      _selectedEndDate != null) {
                     _selectedStartDate = calendarLongPressDetails.date;
                     _selectedEndDate = null;
                   } else {
@@ -138,19 +209,17 @@ class CombinedAppState extends State<CombinedApp> {
                   }
                   print('Selected Start Date: $_selectedStartDate');
                   print('Selected End Date: $_selectedEndDate');
-                  updateChartData(); // 캘린더에서 날짜를 선택하여 차트를 업데이트합니다.
+                  updateChartData();
+                  // 필터링된 점수 업데이트
+                  filteredScore = _calculateFilteredScore();
                 });
               },
               viewHeaderStyle: ViewHeaderStyle(
-                backgroundColor: Colors.blue, // 달력 머리글의 배경색을 설정합니다.
+                backgroundColor: Colors.blue,
               ),
               selectionDecoration: BoxDecoration(
-                color: Colors.lightBlueAccent, // 선택한 날짜의 배경색을 설정합니다.
-                shape: BoxShape.circle, // 선택한 날짜의 모양을 원형으로 설정합니다.
-              ),
-              dataSource: MeetingDataSource(_getDataSource()),
-              monthViewSettings: const MonthViewSettings(
-                appointmentDisplayMode: MonthAppointmentDisplayMode.appointment,
+                color: Colors.lightBlueAccent,
+                shape: BoxShape.circle,
               ),
             ),
           ),
@@ -158,34 +227,40 @@ class CombinedAppState extends State<CombinedApp> {
       ),
     );
   }
-
-  List<Meeting> _getDataSource() {
-    final List<Meeting> meetings = <Meeting>[];
-    final DateTime today = DateTime.now();
-    final DateTime startTime = DateTime(today.year, today.month, today.day, 9);
-    final DateTime endTime = startTime.add(const Duration(hours: 2));
-    meetings.add(Meeting(
-        'Work Today', startTime, endTime, const Color(0xFF0F8644), false));
-    return meetings; // 캘린더에 표시할 회의 데이터를 생성하고 반환합니다.
-  }
 }
 
 class _SalesData {
   _SalesData(this.year, this.sales);
 
-  final DateTime year;
-  final double sales;
+  DateTime year;
+  double sales;
 
   static List<_SalesData> generateRandomData(
       DateTime startDate, DateTime endDate) {
     final random = Random();
     final data = <_SalesData>[];
     for (var date = startDate;
-        date.isBefore(endDate);
-        date = date.add(Duration(days: 1))) {
+    date.isBefore(endDate);
+    date = date.add(Duration(days: 1))) {
       data.add(_SalesData(date, random.nextDouble() * 100));
     }
-    return data; // 무작위로 생성된 차트 데이터를 반환합니다.
+    return data;
+  }
+
+  // Firestore에서 데이터 읽어오기 위한 생성자
+  factory _SalesData.fromMap(Map<String, dynamic> map) {
+    return _SalesData(
+      DateTime.parse(map['year']),
+      map['sales'].toDouble(),
+    );
+  }
+
+  // Firestore에 데이터 쓰기 위한 Map 변환
+  Map<String, dynamic> toMap() {
+    return {
+      'year': year.toIso8601String(),
+      'sales': sales,
+    };
   }
 }
 
@@ -221,11 +296,7 @@ class MeetingDataSource extends CalendarDataSource {
 
   Meeting _getMeetingData(int index) {
     final dynamic meeting = appointments![index];
-    late final Meeting meetingData;
-    if (meeting is Meeting) {
-      meetingData = meeting;
-    }
-    return meetingData; // 캘린더 데이터 소스에서 회의 데이터를 반환합니다.
+    return meeting as Meeting;
   }
 }
 
