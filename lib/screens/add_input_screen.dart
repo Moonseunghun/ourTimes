@@ -142,7 +142,7 @@ class _FirestoreDataViewerState extends State<FirestoreDataViewer> {
               itemBuilder: (context, index) {
                 final score = filteredScores[index];
                 return ListTile(
-                  title: Text('시험: $score'),
+                  title: Text('국영수 점수: $score'),
                 );
               },
             ),

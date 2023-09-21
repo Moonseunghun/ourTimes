@@ -23,7 +23,7 @@ final appRoutes = GoRouter(initialLocation: '/splash', routes: [
     path: '/calendar',
   ),
   GoRoute(
-    builder: (context, state) => CombinedApp(),
+    builder: (context, state) => MyHomePage(),
     name: 'Page 3',
     path: '/combined',
   ),
